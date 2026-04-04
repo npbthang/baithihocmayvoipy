@@ -66,7 +66,11 @@ def load_model():
 
 @st.cache_data(show_spinner=False)
 def load_data():
-    return pd.read_csv("data/dataset.csv")
+    df = pd.read_csv("data/dataset.csv")
+    # Đảm bảo loại bỏ các dòng tiêu đề thừa bị dán nhầm vào giữa file
+    df = df[df['label'] != 'label'] 
+    df['label'] = df['label'].astype(int)
+    return df
 
 # -----------------------------
 # 3. Các hàm bổ trợ Giao diện & Dự đoán
@@ -225,15 +229,22 @@ elif page == "🚀 Triển khai mô hình":
         if uploaded_file:
             df_upload = pd.read_csv(uploaded_file)
             if 'comment' in df_upload.columns:
-                with st.spinner("🚀 Hệ thống đang xử lý dữ liệu..."):
-                    # 1. Dự đoán
-                    df_upload['clean'] = df_upload['comment'].apply(preprocess_text)
+                with st.spinner("🚀 Đang phân tích..."):
+                    # Tiền xử lý văn bản thô
+                    df_upload['clean'] = df_upload['comment'].fillna("").apply(preprocess_text)
+                
+                    # Thực hiện dự đoán
+                    # Chú ý: model ở đây phải là model đã được train lại có nhãn 2
                     df_upload['pred_id'] = model.predict(df_upload['clean'])
-                    
-                    # Áp dụng map an toàn
-                    df_upload['Nhãn'] = df_upload['pred_id'].apply(lambda x: label_map.get(x, "Không xác định"))
-                    
-                    st.divider()
+                
+                    # Ép kiểu về int để map chính xác với label_map
+                    df_upload['pred_id'] = df_upload['pred_id'].astype(int)
+                    df_upload['Nhãn'] = df_upload['pred_id'].map(label_map)
+                
+                    # Kiểm tra nếu có nhãn bị lỗi (NaN)
+                    if df_upload['Nhãn'].isnull().any():
+                        st.warning("⚠️ Phát hiện một số nhãn lạ không nằm trong danh mục (0, 1, 2)")
+                        df_upload['Nhãn'] = df_upload['Nhãn'].fillna("Chưa xác định")
                     
                     # 2. Dashboard Thống kê nâng cao
                     st.subheader("📊 Dashboard Thống kê cảm xúc")
